@@ -3,7 +3,7 @@ const path = require('path');
 const bodyParser = require('body-parser');
 const session = require('express-session');
 const mysql = require('mysql2/promise'); // Menggunakan mysql2 untuk dukungan Promise
-const SearchValidator = require('./scrape.js');
+const SearchValidator = require('./scrape.js'); // Pastikan file ini ada dan berfungsi
 require('dotenv').config();
 
 const app = express();
@@ -23,22 +23,29 @@ app.use(session({
 
 // Buat pool koneksi ke MySQL
 const pool = mysql.createPool({
-  host: process.env.DB_HOST,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASS,
-  database: process.env.DB_NAME,
+  host: 'bt8d8ug5hpoxdwsukll6-mysql.services.clever-cloud.com',
+  user: 'utrs1etdedrsx5og',
+  password: 'nGaXw8vAZUlBJgzNpdQw',
+  database: 'bt8d8ug5hpoxdwsukll6',
   waitForConnections: true,
   connectionLimit: 10, // Jumlah maksimum koneksi yang dapat dibuat oleh pool
   queueLimit: 3 // Jumlah maksimum permintaan yang menunggu koneksi
 });
 
-// Endpoint POST untuk pencarian
+// Endpoint POST untuk pencariannnn
 app.post('/search', async (req, res) => {
   try {
     const { pubkey } = req.body;
     console.log('Received pubkey:', pubkey);
+
+    // Pastikan pubkey valid sebelum melanjutkan
+    if (!pubkey) {
+      return res.status(400).send('Pubkey is required');
+    }
+
     await SearchValidator(pubkey);
-    res.redirect(`/?pubkey=${encodeURIComponent(pubkey)}`); // Redirect ke / dengan pubkey sebagai query parameter
+     // Redirect ke / dengan pubkey sebagai query parameter
+    res.redirect(`/?pubkey=${encodeURIComponent(pubkey)}`);
   } catch (error) {
     console.error('Error searching validator:', error);
     res.status(500).send('Internal Server Error');
@@ -49,8 +56,17 @@ app.post('/search', async (req, res) => {
 app.get('/', async (req, res) => {
   const pubkey = req.query.pubkey; // Ambil pubkey dari query parameter
   console.log('Pubkey from query in /:', pubkey);
+  
+
 
   try {
+    // if (!pubkey) {
+    //   return res.status(400).send('Pubkey is required');
+    // }else{
+    //   res.redirect(`/?pubkey=${encodeURIComponent(pubkey)}`);
+
+    // }
+
     const [rows] = await pool.query('SELECT * FROM validator WHERE pubkey = ?', [pubkey]);
     const users = JSON.parse(JSON.stringify(rows));
 
@@ -61,20 +77,31 @@ app.get('/', async (req, res) => {
     }
 
     // Check balance changes
-    let status;
-    const balance = users[0]?.balance;
-    const lastBalance = users[0]?.last_balance;
-    if (balance > lastBalance) {
-      status = 'Increased';
-    } else {
-      status = 'Decreased';
-    }
+    let status = 'Not Available'; // Default status if no data available
+    if (users.length > 0) {
+      const balance = users[0].balance;
+      const lastBalance = users[0].last_balance;
 
+      if (balance > lastBalance) {
+        status = 'Increased';
+      } else if (balance < lastBalance) {
+        status = 'Decreased';
+      } else {
+        status = 'No Change';
+      }
+    }
+    // res.redirect(`/?pubkey=${encodeURIComponent(pubkey)}`);
     res.render('index', { validators: users, status: status });
   } catch (error) {
     console.error('Error fetching validators:', error);
     res.status(500).send('Internal Server Error');
   }
+  
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
 });
 
 module.exports = app;
